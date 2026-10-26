@@ -86,3 +86,74 @@ jobs:
           gh release create "$TAG" "ARMSX2-iOS-arcade-intel-${GITHUB_RUN_NUMBER}.ipa" --prerelease \
             --title "ARMSX2 iOS arcade build (Intel runner) ${GITHUB_RUN_NUMBER}" \
             --notes "Unsigned IPA from ${GITHUB_SHA}. Sideload it (SideStore/AltStore/etc.)."
+
+  ios-arm:
+    name: iOS IPA (unsigned, Apple Silicon runner)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      # The app uses iOS 26 APIs (glassEffect), so it needs Xcode 26's SDK; the Intel image's default Xcode may be older.
+      - name: Select Xcode
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -d /Applications/Xcode*.app
+          # Xcode 26.3's Swift gives up type-checking a few of the app's SwiftUI expressions ("unable to type-check
+          # this expression in reasonable time"); the oldest 26.x on the image is what the Apple Silicon nightly uses.
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | head -1)
+          [ -z "$X" ] && X=/Applications/Xcode.app
+          sudo xcode-select -switch "$X"
+          xcodebuild -version
+          { echo "Apple Silicon runner ${GITHUB_RUN_NUMBER}: Xcodes on the image:"; echo '```'; ls -d /Applications/Xcode*.app; echo "selected: $X"; xcodebuild -version; echo '```'; } > /tmp/xcodes.md
+          gh api repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments -F body=@/tmp/xcodes.md >/dev/null || true
+          xcodebuild -showsdks | grep -i iphoneos || sudo xcodebuild -downloadPlatform iOS
+          xcrun -sdk iphoneos -f metal >/dev/null 2>&1 || sudo xcodebuild -downloadComponent MetalToolchain || true
+      - name: Install Rust iOS target
+        run: rustup target add aarch64-apple-ios
+      - name: Build unsigned IPA
+        env:
+          BUNDLE_ID: com.armsx2.ios.arcade
+          DISPLAY_NAME: ARMSX2 Arcade
+          # The Intel runner is slow enough that four of the app's big SwiftUI expressions hit the type checker's
+          # per-expression time limit ("unable to type-check this expression in reasonable time"); give it longer.
+          ARMSX2_OTHER_SWIFT_FLAGS: "-Xfrontend -solver-expression-time-threshold=3600 -Xfrontend -solver-scope-threshold=50000000"
+        run: VERSION_SUFFIX="-arcade.${GITHUB_RUN_NUMBER}" ./platforms/ios/scripts/build-ios-ipa.sh
+      # The job log is not reachable from everywhere; a failure's errors go into a commit comment, which the REST API serves.
+      - name: Report build errors
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LOG=platforms/ios/build-ios-xcode/xcodebuild.log
+          {
+            echo "iOS arcade build (Apple Silicon) failed, run ${GITHUB_RUN_NUMBER}."
+            echo
+            echo '```'
+            if [ -f "$LOG" ]; then
+              grep -n -E "error:|fatal error|BUILD FAILED|The following build commands failed" "$LOG" | grep -v -E "warning:" | head -60 | cut -c1-400
+              echo "----- tail -----"
+              tail -n 40 "$LOG" | cut -c1-400
+            else
+              echo "no xcodebuild.log; listing build dir"
+              ls -la platforms/ios/build-ios-xcode 2>&1 | head -20
+            fi
+            echo '```'
+          } > /tmp/report.md
+          gh api repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments -F body=@/tmp/report.md >/dev/null
+      - name: Upload IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: armsx2-ios-arcade-arm
+          path: platforms/ios/build-ios-xcode/ARMSX2-iOS-unsigned.ipa
+          if-no-files-found: error
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ios-arcade-arm-${GITHUB_RUN_NUMBER}"
+          cp platforms/ios/build-ios-xcode/ARMSX2-iOS-unsigned.ipa "ARMSX2-iOS-arcade-arm-${GITHUB_RUN_NUMBER}.ipa"
+          gh release create "$TAG" "ARMSX2-iOS-arcade-arm-${GITHUB_RUN_NUMBER}.ipa" --prerelease \
+            --title "ARMSX2 iOS arcade build (Apple Silicon runner) ${GITHUB_RUN_NUMBER}" \
+            --notes "Unsigned IPA from ${GITHUB_SHA}. Sideload it (SideStore/AltStore/etc.)."
