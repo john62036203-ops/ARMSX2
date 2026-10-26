@@ -658,100 +658,107 @@ struct GameScreenView: View {
 
     // MARK: - Body
 
-    var body: some View {
-        GeometryReader { geo in
-            // The window. A keyboard shrinks the safe region until iPad portrait reads wide.
-            let screen = CGSize(
-                width: geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
-                height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
-            )
-            let isLandscape = screen.width > screen.height
+    // The window layout, out of `body` so the type checker takes each on its own (Swift gives up on the
+    // whole thing as one expression on slower build machines).
+    @ViewBuilder
+    private func gameLayout(geo: GeometryProxy) -> some View {
+        // The window. A keyboard shrinks the safe region until iPad portrait reads wide.
+        let screen = CGSize(
+            width: geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing,
+            height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
+        )
+        let isLandscape = screen.width > screen.height
 
-            Group {
-                if isLandscape {
-                    // Landscape: full-screen layout so pad coordinates match the layout editor.
-                    ZStack {
-                        PhoneGameSurface()
-                            .onTapGesture { revealMenuButtonBriefly() }
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(Text("Game display"))
-                            .accessibilityAddTraits(.isImage)
-                            .accessibilityHint(Text("VoiceOver image recognition can read on-screen text."))
-                            .overlay { menuRevealTapCatcher }
-                        AccessibilityHUDMirror()
-                        if effectiveVirtualPadVisible {
+        Group {
+            if isLandscape {
+                // Landscape: full-screen layout so pad coordinates match the layout editor.
+                ZStack {
+                    PhoneGameSurface()
+                        .onTapGesture { revealMenuButtonBriefly() }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(Text("Game display"))
+                        .accessibilityAddTraits(.isImage)
+                        .accessibilityHint(Text("VoiceOver image recognition can read on-screen text."))
+                        .overlay { menuRevealTapCatcher }
+                    AccessibilityHUDMirror()
+                    if effectiveVirtualPadVisible {
+                        VirtualControllerView(
+                            isLandscape: true,
+                            layoutSnapshot: effectivePadLayoutSnapshot,
+                            skinDescriptor: effectivePadSkinDescriptor,
+                            touchActionSession: touchActionSession
+                        )
+                        .id(padRebuildToken)
+                        .gameplayLaunchChrome(visible: appState.gameplayLaunchControlsVisible)
+                    }
+                    dynamicCrosshairOverlay
+                    menuButtonOverlay(isLandscape: true)
+                        .gameplayLaunchChrome(visible: appState.gameplayLaunchControlsVisible)
+                }
+                .ignoresSafeArea()
+            } else {
+                // Portrait: top game viewport, bottom controller deck.
+                // Game respects the top safe area so OSD stays below the Dynamic Island.
+                // Controller ignores the bottom safe area so buttons remain usable near the home indicator.
+                VStack(spacing: 0) {
+                    // The deck ignores the bottom inset, so it runs to the foot of the window.
+                    let deckHeight = screen.height - geo.safeAreaInsets.top
+                    let gameHeight = min(geo.size.width * 3 / 4, deckHeight * 0.6)
+                    PhoneGameSurface()
+                        .frame(height: gameHeight)
+                        .clipped()
+                        .onTapGesture { revealMenuButtonBriefly() }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(Text("Game display"))
+                        .accessibilityAddTraits(.isImage)
+                        .accessibilityHint(Text("VoiceOver image recognition can read on-screen text."))
+                        .overlay {
+                            ZStack {
+                                menuRevealTapCatcher
+                                AccessibilityHUDMirror()
+                                dynamicCrosshairOverlay
+                            }
+                        }
+
+                    if effectiveVirtualPadVisible {
+                        ZStack {
+                            Color.black
                             VirtualControllerView(
-                                isLandscape: true,
                                 layoutSnapshot: effectivePadLayoutSnapshot,
                                 skinDescriptor: effectivePadSkinDescriptor,
                                 touchActionSession: touchActionSession
                             )
-                            .id(padRebuildToken)
-                            .gameplayLaunchChrome(visible: appState.gameplayLaunchControlsVisible)
-                        }
-                        dynamicCrosshairOverlay
-                        menuButtonOverlay(isLandscape: true)
-                            .gameplayLaunchChrome(visible: appState.gameplayLaunchControlsVisible)
-                    }
-                    .ignoresSafeArea()
-                } else {
-                    // Portrait: top game viewport, bottom controller deck.
-                    // Game respects the top safe area so OSD stays below the Dynamic Island.
-                    // Controller ignores the bottom safe area so buttons remain usable near the home indicator.
-                    VStack(spacing: 0) {
-                        // The deck ignores the bottom inset, so it runs to the foot of the window.
-                        let deckHeight = screen.height - geo.safeAreaInsets.top
-                        let gameHeight = min(geo.size.width * 3 / 4, deckHeight * 0.6)
-                        PhoneGameSurface()
-                            .frame(height: gameHeight)
-                            .clipped()
-                            .onTapGesture { revealMenuButtonBriefly() }
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(Text("Game display"))
-                            .accessibilityAddTraits(.isImage)
-                            .accessibilityHint(Text("VoiceOver image recognition can read on-screen text."))
-                            .overlay {
-                                ZStack {
-                                    menuRevealTapCatcher
-                                    AccessibilityHUDMirror()
-                                    dynamicCrosshairOverlay
-                                }
-                            }
-
-                        if effectiveVirtualPadVisible {
-                            ZStack {
-                                Color.black
-                                VirtualControllerView(
-                                    layoutSnapshot: effectivePadLayoutSnapshot,
-                                    skinDescriptor: effectivePadSkinDescriptor,
-                                    touchActionSession: touchActionSession
-                                )
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .gameplayLaunchChrome(visible: appState.gameplayLaunchControlsVisible)
-                            }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .id(padRebuildToken)
+                            .gameplayLaunchChrome(visible: appState.gameplayLaunchControlsVisible)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .id(padRebuildToken)
                     }
-                    .overlay(alignment: .topTrailing) {
-                        if !menuButtonHidden || menuButtonRevealed {
-                            menuButtonCluster()
-                                .padding(.top, 8)
-                                .padding(.trailing, 4)
-                                .gameplayLaunchChrome(visible: appState.gameplayLaunchControlsVisible)
-                        }
-                    }
-                    // `.keyboard` too: gameplay must not move when an overlay raises one.
-                    .ignoresSafeArea([.container, .keyboard], edges: .bottom)
-                    // The game stays out of the top safe area on purpose, so something has
-                    // to fill it. Black rather than leaving it to whatever is behind: the
-                    // root controller is only black because a boot notification made it so.
-                    .background(Color.black.ignoresSafeArea())
                 }
+                .overlay(alignment: .topTrailing) {
+                    if !menuButtonHidden || menuButtonRevealed {
+                        menuButtonCluster()
+                            .padding(.top, 8)
+                            .padding(.trailing, 4)
+                            .gameplayLaunchChrome(visible: appState.gameplayLaunchControlsVisible)
+                    }
+                }
+                // `.keyboard` too: gameplay must not move when an overlay raises one.
+                .ignoresSafeArea([.container, .keyboard], edges: .bottom)
+                // The game stays out of the top safe area on purpose, so something has
+                // to fill it. Black rather than leaving it to whatever is behind: the
+                // root controller is only black because a boot notification made it so.
+                .background(Color.black.ignoresSafeArea())
             }
-            .preference(key: GameScreenSizePreferenceKey.self, value: screen)
-            // Off the safe region, not the preference: the status bar moves one, not the other.
-            .onChange(of: geo.size) { _, _ in syncFullscreenStateFromWindow() }
+        }
+        .preference(key: GameScreenSizePreferenceKey.self, value: screen)
+        // Off the safe region, not the preference: the status bar moves one, not the other.
+        .onChange(of: geo.size) { _, _ in syncFullscreenStateFromWindow() }
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            gameLayout(geo: geo)
         }
         // An overlay owns focus; the pad and menu button under it stay out of reach.
         .accessibilityHidden(overlayRoute != .hidden)

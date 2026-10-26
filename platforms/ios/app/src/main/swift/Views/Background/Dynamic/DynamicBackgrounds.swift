@@ -4972,12 +4972,10 @@ struct PlayStationPortableBlurBackground: View {
       let secondaryWave = sin(
         progressValue * 4.4 - phase * 0.52 + Double(index) * 0.37
       )
-      let y =
-        size.height * (basePositions[profileIndex] + CGFloat(settings.verticalOffset))
-        + size.height * amplitudes[profileIndex] * CGFloat(settings.waveAmplitude)
-        * CGFloat(longWave)
-        + size.height * 0.018 * CGFloat(settings.detailAmplitude)
-        * CGFloat(secondaryWave)
+      let baseLine: CGFloat = size.height * (basePositions[profileIndex] + CGFloat(settings.verticalOffset))
+      let mainSwing: CGFloat = size.height * amplitudes[profileIndex] * CGFloat(settings.waveAmplitude) * CGFloat(longWave)
+      let detailSwing: CGFloat = size.height * 0.018 * CGFloat(settings.detailAmplitude) * CGFloat(secondaryWave)
+      let y: CGFloat = baseLine + mainSwing + detailSwing
 
       return CGPoint(
         x: -size.width * 0.08 + progress * size.width * 1.16,
@@ -5248,10 +5246,9 @@ struct PlayStation3SplinesBackground: View {
       let detailWave = sin(
         progressValue * .pi * 4.1 - phase * 0.44 + strand * 0.33
       )
-      let y =
-        baseY
-        + amplitude * CGFloat(primaryWave)
-        + size.height * 0.018 * CGFloat(settings.detailAmplitude) * CGFloat(detailWave)
+      let mainSwing: CGFloat = amplitude * CGFloat(primaryWave)
+      let detailSwing: CGFloat = size.height * 0.018 * CGFloat(settings.detailAmplitude) * CGFloat(detailWave)
+      let y: CGFloat = baseY + mainSwing + detailSwing
 
       return CGPoint(
         x: -size.width * 0.08 + progress * size.width * 1.16,

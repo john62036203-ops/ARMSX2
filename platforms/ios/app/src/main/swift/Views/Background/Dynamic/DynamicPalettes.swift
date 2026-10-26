@@ -750,9 +750,12 @@ struct SavedPaletteColor: Codable, Hashable, Identifiable {
   let darkEffectEnabled: Bool?
 
   var id: String {
-    ([hex] + (gradientHexes ?? []) + [darkEffectHex ?? ""]
-      + (darkEffectGradientHexes ?? [])
-      + [darkEffectEnabled.map(String.init) ?? ""]).joined(separator: "-")
+    var parts: [String] = [hex]
+    parts.append(contentsOf: gradientHexes ?? [])
+    parts.append(darkEffectHex ?? "")
+    parts.append(contentsOf: darkEffectGradientHexes ?? [])
+    parts.append(darkEffectEnabled.map { String($0) } ?? "")
+    return parts.joined(separator: "-")
   }
 
   var isGradient: Bool {
