@@ -45,6 +45,9 @@ jobs:
         env:
           BUNDLE_ID: com.armsx2.ios.arcade
           DISPLAY_NAME: ARMSX2 Arcade
+          # The Intel runner is slow enough that four of the app's big SwiftUI expressions hit the type checker's
+          # per-expression time limit ("unable to type-check this expression in reasonable time"); give it longer.
+          ARMSX2_OTHER_SWIFT_FLAGS: "-Xfrontend -solver-expression-time-threshold=3600 -Xfrontend -solver-scope-threshold=50000000"
         run: VERSION_SUFFIX="-arcade.${GITHUB_RUN_NUMBER}" ./platforms/ios/scripts/build-ios-ipa.sh
       # The job log is not reachable from everywhere; a failure's errors go into a commit comment, which the REST API serves.
       - name: Report build errors
