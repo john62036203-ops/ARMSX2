@@ -25,12 +25,18 @@ jobs:
           submodules: recursive
       # The app uses iOS 26 APIs (glassEffect), so it needs Xcode 26's SDK; the Intel image's default Xcode may be older.
       - name: Select Xcode
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           ls -d /Applications/Xcode*.app
-          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          # Xcode 26.3's Swift gives up type-checking a few of the app's SwiftUI expressions ("unable to type-check
+          # this expression in reasonable time"); the oldest 26.x on the image is what the Apple Silicon nightly uses.
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | head -1)
           [ -z "$X" ] && X=/Applications/Xcode.app
           sudo xcode-select -switch "$X"
           xcodebuild -version
+          { echo "Intel runner ${GITHUB_RUN_NUMBER}: Xcodes on the image:"; echo '```'; ls -d /Applications/Xcode*.app; echo "selected: $X"; xcodebuild -version; echo '```'; } > /tmp/xcodes.md
+          gh api repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments -F body=@/tmp/xcodes.md >/dev/null || true
           xcodebuild -showsdks | grep -i iphoneos || sudo xcodebuild -downloadPlatform iOS
           xcrun -sdk iphoneos -f metal >/dev/null 2>&1 || sudo xcodebuild -downloadComponent MetalToolchain || true
       - name: Install Rust iOS target
