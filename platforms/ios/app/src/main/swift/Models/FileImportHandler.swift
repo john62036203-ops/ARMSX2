@@ -27,7 +27,7 @@ final class FileImportHandler {
     var showImportAlert = false
 
     private static let biosExtensionList = ["bin", "rom"]
-    private static let gameExtensionList = ["iso", "chd", "img", "bin", "cue", "mdf", "cso", "zso", "gz", "elf"]
+    private static let gameExtensionList = ["iso", "chd", "img", "bin", "cue", "mdf", "cso", "zso", "gz", "elf", "acgame"]
     private static let pnachExtensionList = ["pnach"]
     private static let biosExtensions = Set(biosExtensionList)
     private static let gameExtensions = Set(gameExtensionList)

@@ -506,7 +506,7 @@ private struct InitialSkinImportResult {
 private enum InitialContentFileInstaller {
     private static let biosMaximumSize: UInt64 = 50 * 1024 * 1024
     private static let supportedGameExtensions = Set([
-        "iso", "chd", "img", "bin", "cue", "mdf", "cso", "zso", "gz", "elf"
+        "iso", "chd", "img", "bin", "cue", "mdf", "cso", "zso", "gz", "elf", "acgame"
     ])
 
     static func prepare(

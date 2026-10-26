@@ -18,7 +18,7 @@ final class ExternalGameLibrary: @unchecked Sendable {
     static let defaultsKey = "ARMSX2iOSExternalGameDirectories"
 
     private(set) var directories: [ExternalGameDirectory] = []
-    private static let gameExtensions = Set(["iso", "chd", "img", "bin", "cue", "mdf", "cso", "zso", "gz", "elf"])
+    private static let gameExtensions = Set(["iso", "chd", "img", "bin", "cue", "mdf", "cso", "zso", "gz", "elf", "acgame"])
 
     private init() {
         reload()

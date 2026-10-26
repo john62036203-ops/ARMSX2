@@ -667,7 +667,7 @@ static BOOL ARMSX2IsSupportedGameImageAtPath(NSString* path)
 	NSString* ext = path.pathExtension.lowercaseString;
 	if ([ext isEqualToString:@"iso"] || [ext isEqualToString:@"img"] || [ext isEqualToString:@"chd"] ||
 	    [ext isEqualToString:@"cso"] || [ext isEqualToString:@"zso"] || [ext isEqualToString:@"gz"] ||
-	    [ext isEqualToString:@"elf"])
+	    [ext isEqualToString:@"elf"] || [ext isEqualToString:@"acgame"])
 		return YES;
 
 	if ([ext isEqualToString:@"bin"]) {
@@ -3295,7 +3295,7 @@ static void ARMSX2RollBackShaderPack(NSArray<NSURL*>* files, NSArray<NSURL*>* di
             NSString *ext = file.pathExtension.lowercaseString;
             if ([ext isEqualToString:@"iso"] || [ext isEqualToString:@"img"] || [ext isEqualToString:@"chd"] ||
                 [ext isEqualToString:@"cso"] || [ext isEqualToString:@"zso"] || [ext isEqualToString:@"gz"] ||
-                [ext isEqualToString:@"elf"]) {
+                [ext isEqualToString:@"elf"] || [ext isEqualToString:@"acgame"]) {
                 [isos addObject:file];
                 [seen addObject:file];
             } else if ([ext isEqualToString:@"bin"]) {

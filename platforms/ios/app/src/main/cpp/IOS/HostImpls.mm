@@ -41,12 +41,75 @@
 #include "pcsx2/DEV9/pcap_io.h"
 #include "pcsx2/DEV9/net.h"
 #include "pcsx2/Input/InputManager.h"
+#include "pcsx2/Arcade/ArcadeInput.h" // Namco System 246/256: the pad drives the cabinet's JVS board
 
 #import <UIKit/UIKit.h>
 
 #include "IOSRuntime.h"
 
 #pragma mark - namespace Host
+
+// Namco System 246/256 games read their cabinet's JVS board, not a DualShock. The iOS front end writes every
+// input (the on-screen pad, MFi gamepads, the simulator keyboard) straight into the emulated DualShock with
+// PadBase::Set() instead of going through InputManager, so ArcadeInput::HandleBinding() never sees it. This
+// mirrors the DualShock's raw inputs onto the board once per CPU-thread pump, sending a binding only when its
+// value changed, which is what the InputManager path would have done.
+static void ARMSX2ForwardPadsToArcadeBoard()
+{
+    static u8 s_last[2][PadDualshock2::Inputs::LENGTH];
+    static bool s_was_active = false;
+
+    if (!ArcadeInput::IsActive()) {
+        if (s_was_active) {
+            std::memset(s_last, 0, sizeof(s_last));
+            s_was_active = false;
+        }
+        return;
+    }
+    s_was_active = true;
+
+    struct Map { u32 input; GenericInputBinding binding; };
+    static constexpr Map map[] = {
+        {PadDualshock2::Inputs::PAD_UP, GenericInputBinding::DPadUp},
+        {PadDualshock2::Inputs::PAD_RIGHT, GenericInputBinding::DPadRight},
+        {PadDualshock2::Inputs::PAD_DOWN, GenericInputBinding::DPadDown},
+        {PadDualshock2::Inputs::PAD_LEFT, GenericInputBinding::DPadLeft},
+        {PadDualshock2::Inputs::PAD_TRIANGLE, GenericInputBinding::Triangle},
+        {PadDualshock2::Inputs::PAD_CIRCLE, GenericInputBinding::Circle},
+        {PadDualshock2::Inputs::PAD_CROSS, GenericInputBinding::Cross},
+        {PadDualshock2::Inputs::PAD_SQUARE, GenericInputBinding::Square},
+        {PadDualshock2::Inputs::PAD_SELECT, GenericInputBinding::Select},
+        {PadDualshock2::Inputs::PAD_START, GenericInputBinding::Start},
+        {PadDualshock2::Inputs::PAD_L1, GenericInputBinding::L1},
+        {PadDualshock2::Inputs::PAD_L2, GenericInputBinding::L2},
+        {PadDualshock2::Inputs::PAD_R1, GenericInputBinding::R1},
+        {PadDualshock2::Inputs::PAD_R2, GenericInputBinding::R2},
+        {PadDualshock2::Inputs::PAD_L3, GenericInputBinding::L3},
+        {PadDualshock2::Inputs::PAD_R3, GenericInputBinding::R3},
+        {PadDualshock2::Inputs::PAD_L_UP, GenericInputBinding::LeftStickUp},
+        {PadDualshock2::Inputs::PAD_L_RIGHT, GenericInputBinding::LeftStickRight},
+        {PadDualshock2::Inputs::PAD_L_DOWN, GenericInputBinding::LeftStickDown},
+        {PadDualshock2::Inputs::PAD_L_LEFT, GenericInputBinding::LeftStickLeft},
+        {PadDualshock2::Inputs::PAD_R_UP, GenericInputBinding::RightStickUp},
+        {PadDualshock2::Inputs::PAD_R_RIGHT, GenericInputBinding::RightStickRight},
+        {PadDualshock2::Inputs::PAD_R_DOWN, GenericInputBinding::RightStickDown},
+        {PadDualshock2::Inputs::PAD_R_LEFT, GenericInputBinding::RightStickLeft},
+    };
+
+    for (u32 player = 0; player < 2; player++) {
+        PadBase* pad = Pad::GetPad(static_cast<u8>(player), 0);
+        if (!pad)
+            continue;
+        for (const Map& m : map) {
+            const u8 raw = pad->GetRawInput(m.input);
+            if (raw == s_last[player][m.input])
+                continue;
+            s_last[player][m.input] = raw;
+            ArcadeInput::HandleBinding(player, m.binding, static_cast<float>(raw) / 255.0f);
+        }
+    }
+}
+
 namespace Host
 {
     SDL_Window* g_sdl_window = nullptr;
@@ -358,6 +421,8 @@ namespace Host
                 ARMSX2ApplyIOSGamepadInput(gamepad_index, gamepad, gamepad_pad, gamepad_index == 0);
             }
         }
+
+        ARMSX2ForwardPadsToArcadeBoard();
 
         // [BIOS_NAV] Auto-navigate BIOS — debug only
 #if DEBUG

@@ -1,0 +1,49 @@
+# Fork build: the iOS app with Namco System 246/256 arcade games, as an unsigned IPA published as a release
+# so a phone can download it without a GitHub login.
+name: iOS arcade IPA
+
+on:
+  push:
+    branches:
+      - arcade
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-arcade-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: iOS IPA (unsigned)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode.app
+      - name: Install Rust iOS target
+        run: rustup target add aarch64-apple-ios
+      - name: Build unsigned IPA
+        env:
+          BUNDLE_ID: com.armsx2.ios.arcade
+          DISPLAY_NAME: ARMSX2 Arcade
+        run: VERSION_SUFFIX="-arcade.${GITHUB_RUN_NUMBER}" ./platforms/ios/scripts/build-ios-ipa.sh
+      - name: Upload IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: armsx2-ios-arcade
+          path: platforms/ios/build-ios-xcode/ARMSX2-iOS-unsigned.ipa
+          if-no-files-found: error
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ios-arcade-${GITHUB_RUN_NUMBER}"
+          cp platforms/ios/build-ios-xcode/ARMSX2-iOS-unsigned.ipa "ARMSX2-iOS-arcade-${GITHUB_RUN_NUMBER}.ipa"
+          gh release create "$TAG" "ARMSX2-iOS-arcade-${GITHUB_RUN_NUMBER}.ipa" --prerelease \
+            --title "ARMSX2 iOS arcade build ${GITHUB_RUN_NUMBER}" \
+            --notes "Unsigned IPA from ${GITHUB_SHA}. Sideload it (SideStore/AltStore/etc.)."

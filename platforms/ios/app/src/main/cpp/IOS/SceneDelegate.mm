@@ -37,6 +37,7 @@
 #include "pcsx2/PerformanceMetrics.h"
 #include "pcsx2/R5900.h"              // cpuRegs
 #include "pcsx2/VMManager.h"
+#include "pcsx2/Arcade/ArcadeSetup.h" // Namco System 246/256 games
 #include "pcsx2/vtlb.h"               // vtlb_FastmemAreaUnavailable
 #include "pcsx2/SIO/Memcard/MemoryCardFile.h"
 #include "pcsx2/ImGui/ImGuiManager.h"
@@ -578,6 +579,19 @@ static void ARMSX2StopJITKeepalive()
     }
 }
 
+
+// An .acgame, or a file the game list knows as an arcade game (an image kept without an .acgame is listed that way).
+static bool ARMSX2IsArcadeGamePath(const std::string& path)
+{
+    if (path.empty())
+        return false;
+    if (VMManager::IsArcadeGameFileName(path))
+        return true;
+    const auto lock = GameList::GetLock();
+    const GameList::Entry* entry = GameList::GetEntryForPath(path.c_str());
+    return entry && entry->IsArcade();
+}
+
 static void ARMSX2StartJITKeepalive()
 {
     // Interpreter-only sessions do not own executable mappings and have no JIT
@@ -892,6 +906,7 @@ static void ARMSX2StartJITKeepalive()
             VMBootParameters boot_params;
             const bool loadLastSaveState = s_loadLastSaveStateOnBoot.exchange(false);
             std::string bootGameName;
+            bool arcadeBoot = false;
             boot_params.fast_boot = false;
             {
                 std::string isoDir = EmuFolders::DataRoot + "/iso";
@@ -922,7 +937,36 @@ static void ARMSX2StartJITKeepalive()
                     std::string suffix = isoFilename.size() >= 4 ? isoFilename.substr(isoFilename.size() - 4) : "";
                     std::transform(suffix.begin(), suffix.end(), suffix.begin(), ::tolower);
                     bool isElf = (suffix == ".elf");
-                    if (isElf) {
+                    if (ARMSX2IsArcadeGamePath(isoPath)) {
+                        // A Namco System 246/256 game (an .acgame, or an arcade image the game list knows). ArcadeSetup
+                        // copies its dongle into the memory cards folder, seeds its SRAM and names the files the board
+                        // boots from; VMManager::Initialize takes it down its arcade branch (no disc source).
+                        ArcadeSetup::PrepareResult prepared = ArcadeSetup::Service().Prepare(isoPath);
+                        if (!prepared.ok) {
+                            std::string message = prepared.error;
+                            if (message.empty())
+                                message = "This arcade game could not be made ready.";
+                            std::fprintf(stderr, "@@ARCADE_BOOT_NOT_READY@@ path=%s error=%s\n", isoPath.c_str(), message.c_str());
+                            std::fflush(stderr);
+                            Console.Error("Arcade game not ready: %s", message.c_str());
+                            Host::ReportErrorAsync(prepared.title.empty() ? "Arcade game not ready" : prepared.title, message);
+                            s_vmThreadActive.store(false);
+                            s_vmHeartbeatGeneration.fetch_add(1, std::memory_order_acq_rel);
+                            dispatch_async(dispatch_get_main_queue(), ^{
+                                [[NSNotificationCenter defaultCenter] postNotificationName:@"ARMSX2iOSVMDidShutdown" object:nil];
+                            });
+                            continue; // back to wait loop
+                        }
+                        prepared.ApplyTo(&boot_params);
+                        boot_params.fast_boot = true;
+                        arcadeBoot = true;
+                        std::fprintf(stderr, "@@ARCADE_BOOT@@ acgame=%s elf=%s media=%s\n",
+                            boot_params.filename.c_str(), boot_params.arcade_elf.c_str(), boot_params.arcade_media.c_str());
+                        std::fflush(stderr);
+                        Console.WriteLn("@@ARCADE_BOOT@@ %s (%s): acgame=%s elf=%s media=%s", prepared.title.c_str(),
+                            prepared.game_id.c_str(), boot_params.filename.c_str(), boot_params.arcade_elf.c_str(),
+                            boot_params.arcade_media.c_str());
+                    } else if (isElf) {
                         boot_params.elf_override = isoPath;
                         boot_params.source_type = CDVD_SourceType::NoDisc;
                         boot_params.fast_boot = true;
@@ -971,7 +1015,8 @@ static void ARMSX2StartJITKeepalive()
 
             // BIOS sanity check
             const std::string biosPath = Path::Combine(EmuFolders::Bios, EmuConfig.BaseFilenames.Bios);
-            const bool biosExists = !EmuConfig.BaseFilenames.Bios.empty() && FileSystem::FileExists(biosPath.c_str());
+            const bool biosExists = (!EmuConfig.BaseFilenames.Bios.empty() && FileSystem::FileExists(biosPath.c_str())) ||
+                (arcadeBoot && ArcadeSetup::Service().GetBiosStatus().IsPresent());
             std::fprintf(stderr, "@@BOOT_BIOS_CHECK@@ bios=\"%s\" path=\"%s\" exists=%d\n",
                 EmuConfig.BaseFilenames.Bios.c_str(), biosPath.c_str(), biosExists ? 1 : 0);
             std::fflush(stderr);
