@@ -1,24 +1,24 @@
 # Fork build: the iOS app with Namco System 246/256 arcade games, as an unsigned IPA published as a release
 # so a phone can download it without a GitHub login.
-name: iOS arcade IPA
+name: iOS arcade IPA (Intel runner)
 
 on:
   push:
     branches:
-      - arcade
+      - arcade-intel
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: ios-arcade-${{ github.ref }}
+  group: ios-arcade-intel-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   ios:
     name: iOS IPA (unsigned)
-    runs-on: macos-26
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,15 +35,15 @@ jobs:
       - name: Upload IPA
         uses: actions/upload-artifact@v7
         with:
-          name: armsx2-ios-arcade
+          name: armsx2-ios-arcade-intel
           path: platforms/ios/build-ios-xcode/ARMSX2-iOS-unsigned.ipa
           if-no-files-found: error
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ios-arcade-${GITHUB_RUN_NUMBER}"
-          cp platforms/ios/build-ios-xcode/ARMSX2-iOS-unsigned.ipa "ARMSX2-iOS-arcade-${GITHUB_RUN_NUMBER}.ipa"
-          gh release create "$TAG" "ARMSX2-iOS-arcade-${GITHUB_RUN_NUMBER}.ipa" --prerelease \
-            --title "ARMSX2 iOS arcade build ${GITHUB_RUN_NUMBER}" \
+          TAG="ios-arcade-intel-${GITHUB_RUN_NUMBER}"
+          cp platforms/ios/build-ios-xcode/ARMSX2-iOS-unsigned.ipa "ARMSX2-iOS-arcade-intel-${GITHUB_RUN_NUMBER}.ipa"
+          gh release create "$TAG" "ARMSX2-iOS-arcade-intel-${GITHUB_RUN_NUMBER}.ipa" --prerelease \
+            --title "ARMSX2 iOS arcade build (Intel runner) ${GITHUB_RUN_NUMBER}" \
             --notes "Unsigned IPA from ${GITHUB_SHA}. Sideload it (SideStore/AltStore/etc.)."
