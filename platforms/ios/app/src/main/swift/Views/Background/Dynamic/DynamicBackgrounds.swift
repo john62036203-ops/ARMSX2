@@ -4965,7 +4965,7 @@ struct PlayStationPortableBlurBackground: View {
       + Double(index) * 0.63 * settings.phaseSpread
 
     let sampleCount = frameRates.scaledDynamicGeometryCount(28, minimum: 10)
-    let points = (0...sampleCount).map { step in
+    let points: [CGPoint] = (0...sampleCount).map { (step: Int) -> CGPoint in
       let progress = CGFloat(step) / CGFloat(sampleCount)
       let progressValue = Double(progress)
       let longWave = sin(progressValue * 2.15 + phase)
@@ -5239,7 +5239,7 @@ struct PlayStation3SplinesBackground: View {
       * CGFloat(settings.waveAmplitude)
 
     let sampleCount = frameRates.scaledDynamicGeometryCount(32, minimum: 12)
-    let points = (0...sampleCount).map { step in
+    let points: [CGPoint] = (0...sampleCount).map { (step: Int) -> CGPoint in
       let progress = CGFloat(step) / CGFloat(sampleCount)
       let progressValue = Double(progress)
       let primaryWave = sin(progressValue * .pi * 2.05 + phase)

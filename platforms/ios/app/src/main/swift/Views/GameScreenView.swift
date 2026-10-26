@@ -756,7 +756,8 @@ struct GameScreenView: View {
         .onChange(of: geo.size) { _, _ in syncFullscreenStateFromWindow() }
     }
 
-    var body: some View {
+    // `body` in three stages: Swift gives up type-checking the whole modifier chain as one expression.
+    private var gameSurfaceWithOverlays: some View {
         GeometryReader { geo in
             gameLayout(geo: geo)
         }
@@ -817,6 +818,10 @@ struct GameScreenView: View {
         }
         .overlay(alignment: .top) { saveStateUndoOverlay }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: overlayRoute)
+    }
+
+    private var gameSurfaceWithLifecycle: some View {
+        gameSurfaceWithOverlays
         .onAppear {
             let nativeEmulationOnlyMode = ARMSX2Bridge.isEmulationOnlyModeActive()
             // Returning to the same stripped VM must not recreate services that
@@ -874,6 +879,10 @@ struct GameScreenView: View {
             guard let request else { return }
             handleEmulationControllerShortcut(request.shortcut)
         }
+    }
+
+    var body: some View {
+        gameSurfaceWithLifecycle
         // Not scenePhase: this view lives in SDL's UIKit scene, where it stays .background.
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
             wasBackgrounded = true
