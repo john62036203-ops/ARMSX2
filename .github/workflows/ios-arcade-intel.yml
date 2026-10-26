@@ -32,6 +32,28 @@ jobs:
           BUNDLE_ID: com.armsx2.ios.arcade
           DISPLAY_NAME: ARMSX2 Arcade
         run: VERSION_SUFFIX="-arcade.${GITHUB_RUN_NUMBER}" ./platforms/ios/scripts/build-ios-ipa.sh
+      # The job log is not reachable from everywhere; a failure's errors go into a commit comment, which the REST API serves.
+      - name: Report build errors
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LOG=platforms/ios/build-ios-xcode/xcodebuild.log
+          {
+            echo "iOS arcade build (Intel) failed, run ${GITHUB_RUN_NUMBER}."
+            echo
+            echo '```'
+            if [ -f "$LOG" ]; then
+              grep -n -E "error:|fatal error|BUILD FAILED|The following build commands failed" "$LOG" | grep -v -E "warning:" | head -60 | cut -c1-400
+              echo "----- tail -----"
+              tail -n 40 "$LOG" | cut -c1-400
+            else
+              echo "no xcodebuild.log; listing build dir"
+              ls -la platforms/ios/build-ios-xcode 2>&1 | head -20
+            fi
+            echo '```'
+          } > /tmp/report.md
+          gh api repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments -F body=@/tmp/report.md >/dev/null
       - name: Upload IPA
         uses: actions/upload-artifact@v7
         with:
