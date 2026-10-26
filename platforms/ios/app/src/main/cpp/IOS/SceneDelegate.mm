@@ -941,7 +941,11 @@ static void ARMSX2StartJITKeepalive()
                         // A Namco System 246/256 game (an .acgame, or an arcade image the game list knows). ArcadeSetup
                         // copies its dongle into the memory cards folder, seeds its SRAM and names the files the board
                         // boots from; VMManager::Initialize takes it down its arcade branch (no disc source).
-                        ArcadeSetup::PrepareResult prepared = ArcadeSetup::Service().Prepare(isoPath);
+                        // The real path: the app's folder is /var/mobile/..., a symlink to /private/var/mobile/....
+                        // Hle_SetHostRoot() resolves the boot program's folder through RealPath, and host_path()
+                        // only lets "host:boot.elf" through when it spells the ELF override the same way; with the
+                        // unresolved path the board's boot program was refused ("Failed to read ELF from ''").
+                        ArcadeSetup::PrepareResult prepared = ArcadeSetup::Service().Prepare(Path::RealPath(isoPath));
                         if (!prepared.ok) {
                             std::string message = prepared.error;
                             if (message.empty())
