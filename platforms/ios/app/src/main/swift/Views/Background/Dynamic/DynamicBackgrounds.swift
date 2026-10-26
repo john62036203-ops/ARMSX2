@@ -4965,22 +4965,26 @@ struct PlayStationPortableBlurBackground: View {
       + Double(index) * 0.63 * settings.phaseSpread
 
     let sampleCount = frameRates.scaledDynamicGeometryCount(28, minimum: 10)
-    let points: [CGPoint] = (0...sampleCount).map { (step: Int) -> CGPoint in
-      let progress = CGFloat(step) / CGFloat(sampleCount)
-      let progressValue = Double(progress)
-      let longWave = sin(progressValue * 2.15 + phase)
-      let secondaryWave = sin(
-        progressValue * 4.4 - phase * 0.52 + Double(index) * 0.37
-      )
-      let baseLine: CGFloat = size.height * (basePositions[profileIndex] + CGFloat(settings.verticalOffset))
-      let mainSwing: CGFloat = size.height * amplitudes[profileIndex] * CGFloat(settings.waveAmplitude) * CGFloat(longWave)
-      let detailSwing: CGFloat = size.height * 0.018 * CGFloat(settings.detailAmplitude) * CGFloat(secondaryWave)
+    // A loop, not a map: the type checker gives up on the closure as one expression on slow build machines.
+    let indexValue: Double = Double(index)
+    let baseLine: CGFloat = size.height * (basePositions[profileIndex] + CGFloat(settings.verticalOffset))
+    let mainAmplitude: CGFloat = size.height * amplitudes[profileIndex] * CGFloat(settings.waveAmplitude)
+    let detailAmplitude: CGFloat = size.height * 0.018 * CGFloat(settings.detailAmplitude)
+    let xStart: CGFloat = -size.width * 0.08
+    let xSpan: CGFloat = size.width * 1.16
+    var points: [CGPoint] = []
+    points.reserveCapacity(sampleCount + 1)
+    for step in 0...sampleCount {
+      let progress: CGFloat = CGFloat(step) / CGFloat(sampleCount)
+      let progressValue: Double = Double(progress)
+      let longWave: Double = sin(progressValue * 2.15 + phase)
+      let secondaryPhase: Double = progressValue * 4.4 - phase * 0.52 + indexValue * 0.37
+      let secondaryWave: Double = sin(secondaryPhase)
+      let mainSwing: CGFloat = mainAmplitude * CGFloat(longWave)
+      let detailSwing: CGFloat = detailAmplitude * CGFloat(secondaryWave)
       let y: CGFloat = baseLine + mainSwing + detailSwing
-
-      return CGPoint(
-        x: -size.width * 0.08 + progress * size.width * 1.16,
-        y: y
-      )
+      let x: CGFloat = xStart + progress * xSpan
+      points.append(CGPoint(x: x, y: y))
     }
 
     return DynamicBackgroundGeometry.smoothCurve(through: points)
@@ -5239,21 +5243,25 @@ struct PlayStation3SplinesBackground: View {
       * CGFloat(settings.waveAmplitude)
 
     let sampleCount = frameRates.scaledDynamicGeometryCount(32, minimum: 12)
-    let points: [CGPoint] = (0...sampleCount).map { (step: Int) -> CGPoint in
-      let progress = CGFloat(step) / CGFloat(sampleCount)
-      let progressValue = Double(progress)
-      let primaryWave = sin(progressValue * .pi * 2.05 + phase)
-      let detailWave = sin(
-        progressValue * .pi * 4.1 - phase * 0.44 + strand * 0.33
-      )
+    // A loop, not a map: the type checker gives up on the closure as one expression on slow build machines.
+    let detailAmplitude: CGFloat = size.height * 0.018 * CGFloat(settings.detailAmplitude)
+    let xStart: CGFloat = -size.width * 0.08
+    let xSpan: CGFloat = size.width * 1.16
+    let primaryRate: Double = Double.pi * 2.05
+    let detailRate: Double = Double.pi * 4.1
+    var points: [CGPoint] = []
+    points.reserveCapacity(sampleCount + 1)
+    for step in 0...sampleCount {
+      let progress: CGFloat = CGFloat(step) / CGFloat(sampleCount)
+      let progressValue: Double = Double(progress)
+      let primaryWave: Double = sin(progressValue * primaryRate + phase)
+      let detailPhase: Double = progressValue * detailRate - phase * 0.44 + strand * 0.33
+      let detailWave: Double = sin(detailPhase)
       let mainSwing: CGFloat = amplitude * CGFloat(primaryWave)
-      let detailSwing: CGFloat = size.height * 0.018 * CGFloat(settings.detailAmplitude) * CGFloat(detailWave)
+      let detailSwing: CGFloat = detailAmplitude * CGFloat(detailWave)
       let y: CGFloat = baseY + mainSwing + detailSwing
-
-      return CGPoint(
-        x: -size.width * 0.08 + progress * size.width * 1.16,
-        y: y
-      )
+      let x: CGFloat = xStart + progress * xSpan
+      points.append(CGPoint(x: x, y: y))
     }
 
     return DynamicBackgroundGeometry.smoothCurve(through: points)
