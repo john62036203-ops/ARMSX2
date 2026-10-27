@@ -54,19 +54,39 @@
 // PadBase::Set() instead of going through InputManager, so ArcadeInput::HandleBinding() never sees it. This
 // mirrors the DualShock's raw inputs onto the board once per CPU-thread pump, sending a binding only when its
 // value changed, which is what the InputManager path would have done.
+//
+// The Gundam VS cabinets (4 buttons: shoot, melee, jump, target) leave the shoulder buttons idle, so those
+// become the combination presses the games are played with:
+//   L1 = shoot+melee   R1 = melee+jump   L2 = shoot+jump   R2 = shoot+melee+jump (awakening in NEXT)
+static const char* const kGundamGameIds[] = {"NM00013", "NM00017", "NM00024", "NM00034", "NM00043", "NM00052"};
+
 static void ARMSX2ForwardPadsToArcadeBoard()
 {
     static u8 s_last[2][PadDualshock2::Inputs::LENGTH];
     static bool s_was_active = false;
+    static bool s_gundam = false;
+    static bool s_game_known = false;
 
     if (!ArcadeInput::IsActive()) {
         if (s_was_active) {
             std::memset(s_last, 0, sizeof(s_last));
             s_was_active = false;
+            s_game_known = false;
+            s_gundam = false;
         }
         return;
     }
     s_was_active = true;
+    if (!s_game_known) {
+        const std::string id = ArcadeInput::GetGameId();
+        if (!id.empty()) {
+            s_gundam = false;
+            for (const char* g : kGundamGameIds)
+                if (id == g)
+                    s_gundam = true;
+            s_game_known = true;
+        }
+    }
 
     struct Map { u32 input; GenericInputBinding binding; };
     static constexpr Map map[] = {
@@ -100,8 +120,19 @@ static void ARMSX2ForwardPadsToArcadeBoard()
         PadBase* pad = Pad::GetPad(static_cast<u8>(player), 0);
         if (!pad)
             continue;
+        u8 eff[PadDualshock2::Inputs::LENGTH] = {};
+        for (const Map& m : map)
+            eff[m.input] = pad->GetRawInput(m.input);
+        if (s_gundam) {
+            using I = PadDualshock2::Inputs;
+            const u8 l1 = eff[I::PAD_L1], r1 = eff[I::PAD_R1], l2 = eff[I::PAD_L2], r2 = eff[I::PAD_R2];
+            eff[I::PAD_SQUARE] = std::max({eff[I::PAD_SQUARE], l1, l2, r2}); // shoot
+            eff[I::PAD_TRIANGLE] = std::max({eff[I::PAD_TRIANGLE], l1, r1, r2}); // melee
+            eff[I::PAD_CROSS] = std::max({eff[I::PAD_CROSS], r1, l2, r2}); // jump
+            eff[I::PAD_L1] = eff[I::PAD_R1] = eff[I::PAD_L2] = eff[I::PAD_R2] = 0;
+        }
         for (const Map& m : map) {
-            const u8 raw = pad->GetRawInput(m.input);
+            const u8 raw = eff[m.input];
             if (raw == s_last[player][m.input])
                 continue;
             s_last[player][m.input] = raw;
