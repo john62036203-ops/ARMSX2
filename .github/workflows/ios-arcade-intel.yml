@@ -18,6 +18,8 @@ concurrency:
 jobs:
   ios:
     name: iOS IPA (unsigned)
+    # One runner per push (the Apple Silicon job below); the Intel one only when dispatched by hand.
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v7
